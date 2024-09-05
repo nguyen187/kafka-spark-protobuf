@@ -46,7 +46,7 @@ spark-logs
 event-logs
 checkpoint
 tmp
-
+./src/DATA/gtpv_match.csv
 .idea/
 
 
