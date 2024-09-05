@@ -1,4 +1,4 @@
-package org.example.util;
+package org.gtpvpair.util;
 
 import org.apache.spark.SparkConf;
 
@@ -22,6 +22,7 @@ public class ConfigProperty implements Serializable {
     public static final String TIMOEOUT_CONNECT_ZK = "timeout.connect.zk";
     public static final String KAFKA_GROUPID_DATAMON = "groupt.id.datamon";
     public static final String KAFKA_TOPIC_INPUT = "n1.topic.input";
+    public static final String KAFKA_BROKER = "list.broker";
 
     // Private constructor để ngăn việc khởi tạo từ bên ngoài
     private ConfigProperty() throws IOException {

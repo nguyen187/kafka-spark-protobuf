@@ -1,19 +1,34 @@
-package org.example.properties;
+package org.gtpvpair.properties;
 
-import java.util.HashMap;
+import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.gtpvpair.util.ConfigProperty;
 
 public class ProducerProperties {
+    private final String kfBroker;
+
     /**
      * Define configuration for Kafka producer
      * @return Map<String, Object> with Kafka producer configurations
      */
-    public static Map<String, Object> getInstance() {
-        Map<String, Object> kafkaParams = new HashMap<>();
-        kafkaParams.put("bootstrap.servers", "192.168.117.131:9092");
+
+
+
+    public ProducerProperties() throws IOException {
+        final ConfigProperty configProperty = ConfigProperty.getInstance();
+        this.kfBroker = configProperty.getProperty(ConfigProperty.KAFKA_BROKER);
+
+    }
+
+
+    public static Map<String, Object> getInstance() throws IOException {
+
+        Map<String, Object> kafkaParams = new ConcurrentHashMap<>();
+        kafkaParams.put("bootstrap.servers", ConfigProperty.getInstance().getProperty(ConfigProperty.KAFKA_BROKER));
         kafkaParams.put("key.serializer", StringSerializer.class.getName());
         kafkaParams.put("value.serializer", StringSerializer.class.getName());
         kafkaParams.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");

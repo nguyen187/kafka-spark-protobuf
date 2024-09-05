@@ -39,14 +39,14 @@
 //        }
 //    }
 //}
-package org.example.properties;
+package org.gtpvpair.properties;
 
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
-import org.json.JSONObject;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.Map;
 import java.util.Properties;
@@ -57,7 +57,7 @@ public class PublishToKafka implements Serializable {
     private static KafkaProducer<String, String> producer;
 
     // Private constructor to prevent instantiation
-    private PublishToKafka() {
+    private PublishToKafka() throws IOException {
         // Initialize Kafka producer
         Map<String, Object> kafkaParams = ProducerProperties.getInstance();
         Properties props = new Properties();
@@ -69,7 +69,7 @@ public class PublishToKafka implements Serializable {
     }
 
     // Public method to provide access to the singleton instance
-    public static synchronized PublishToKafka getInstance() {
+    public static synchronized PublishToKafka getInstance() throws IOException {
         if (instance == null) {
             instance = new PublishToKafka();
         }
@@ -77,7 +77,7 @@ public class PublishToKafka implements Serializable {
     }
 
     // Method to send data to Kafka
-    public void sendToKafka(String topic, String key, JSONObject json) {
+    public void sendToKafka(String topic, String key, String json) {
         if (producer == null) {
             throw new IllegalStateException("KafkaProducer is not initialized");
         }

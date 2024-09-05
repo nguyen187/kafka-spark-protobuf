@@ -1,0 +1,22 @@
+syntax = "proto2";
+
+package exchange_message_def;
+
+option java_package = "org.gtpvpair.message";
+option java_outer_classname = "ExchangeProtoMessage";
+option optimize_for = SPEED;
+
+message ProtMessage {
+  required string timestamp = 1;
+  required string source_ip = 2;
+  required string dest_ip = 3;
+  required string message_type = 4;
+  required int32 sequence_number = 5;
+  optional string imsi = 6;
+  optional string msisdn = 7;
+  optional string teid = 8;
+  optional string cause = 9;
+  optional string user_location = 10;
+  optional string bearer_context = 11;
+  optional string dpi_ip = 12;
+}

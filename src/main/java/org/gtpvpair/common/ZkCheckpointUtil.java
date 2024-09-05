@@ -1,25 +1,26 @@
-package org.example.common;
+package org.gtpvpair.common;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import kafka.security.auth.Topic;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.Stat;
+import org.gtpvpair.util.ConfigProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 
 public class ZkCheckpointUtil implements Serializable {
-//    public static final Flogger L
+    //    public static final Flogger L
     public static final String PATH_ZOO_ROOT = "/__consumer_offsets";
-    public static final String DEFAULT_OFFSET = "lastest";
+    public static final String DEFAULT_OFFSET = "latest";
     private static final Logger LOGGER = LoggerFactory.getLogger(ZkCheckpointUtil.class);
 
     private transient CountDownLatch connectedSignal = new CountDownLatch(1);
@@ -81,34 +82,20 @@ public class ZkCheckpointUtil implements Serializable {
     public Stat exists(String path) throws KeeperException, InterruptedException {
         return zooKeeper.exists(path, true);
     }
-    public String getData(String path) throws InterruptedException, KeeperException{
+    public String getData(String path) throws InterruptedException, KeeperException {
         Stat stat = exists(path);
-//        LOGGER.info("STAT {}",stat);
         if (stat != null) {
-            Watcher watcher = watchedEvent -> {
-                if (watchedEvent.getType() == Watcher.Event.EventType.None){
-                    if (watchedEvent.getState() == Watcher.Event.KeeperState.Expired){
-                        connectedSignal.countDown();
-                    }
-                } else {
-                    try {
-                        byte[] bn = zooKeeper.getData(path,false,null);
-                        connectedSignal.countDown();
-
-                    } catch (KeeperException | InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-            };
-            byte[] result = zooKeeper.getData(path, watcher,null);
-            String data = new String(result, StandardCharsets.UTF_8);
-            connectedSignal.await();
-            return data;
-
+            try {
+                byte[] result = zooKeeper.getData(path, false, null);
+                return new String(result, StandardCharsets.UTF_8);
+            } catch (KeeperException | InterruptedException e) {
+                throw new RuntimeException("Error retrieving data from Zookeeper", e);
+            }
         } else {
             return null;
         }
     }
+
     public String readCheckpoint(String topic, String groupId) throws IOException{
         reconnect();
 
@@ -135,7 +122,7 @@ public class ZkCheckpointUtil implements Serializable {
         Map<TopicPartition, Long> inputOffsets = convertCheckpoint(inputCheckpoint);
         Map<Integer, Long> offsetMap = new HashMap<>();
         Map<String, Map<Integer,Long>> checkpointMap = new HashMap<>();
-        if (currentOffsets.size() != inputOffsets.size()){
+        if (currentOffsets.size() != inputOffsets.size() || currentCheckpoint.equals("latest")){
             return inputCheckpoint;
         } else {
             inputOffsets.forEach((tp,offset)->{
@@ -177,7 +164,7 @@ public class ZkCheckpointUtil implements Serializable {
             }
             fullPath += "/" + topic;
             if (exists(fullPath) == null){
-                create(fullPath,fullPath.getBytes());
+                create(fullPath,checkpoint.getBytes());
             } else {
                 update(fullPath,checkpoint.getBytes());
 
@@ -189,4 +176,51 @@ public class ZkCheckpointUtil implements Serializable {
             close();
         }
     }
+    private KafkaConsumer<String, String> createKafkaConsumer() throws IOException {
+        Properties props = new Properties();
+
+        ConfigProperty configProperty = ConfigProperty.getInstance();
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, configProperty.getProperty(ConfigProperty.KAFKA_BROKER) ); // URL của các broker Kafka
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, configProperty.getProperty(ConfigProperty.KAFKA_GROUPID_DATAMON)); // group id
+        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer");
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer");
+        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false"); // tắt tự động commit
+        return new KafkaConsumer<>(props);
+    }
+    public Map<TopicPartition, Long> getEarliestOffsets(String topic) throws IOException {
+        KafkaConsumer<String, String> consumer = createKafkaConsumer();
+        Map<TopicPartition, Long> earliestOffsets = new HashMap<>();
+
+        try {
+            // Get partition information for the topic
+            List<TopicPartition> partitions = new ArrayList<>();
+            consumer.partitionsFor(topic).forEach(partitionInfo ->
+                    partitions.add(new TopicPartition(topic, partitionInfo.partition()))
+            );
+
+            // Assign partitions to the consumer
+            consumer.assign(partitions);
+
+            // Seek to beginning and get the earliest offset
+            consumer.seekToBeginning(partitions);
+            for (TopicPartition partition : partitions) {
+                long earliestOffset = consumer.position(partition);
+                earliestOffsets.put(partition, earliestOffset);
+            }
+        } finally {
+            consumer.close();
+        }
+
+        return earliestOffsets;
+    }
+    public Map <TopicPartition, Long> validOffset(Map<TopicPartition,Long> checkpointOffset,Map<TopicPartition, Long> earliestOffsets){
+        checkpointOffset.forEach((topicPartition, aLong) -> {
+            Long earliestOffset = earliestOffsets.get(topicPartition);
+            if (aLong < earliestOffset){
+                checkpointOffset.put(topicPartition,earliestOffset);
+            }
+        });
+        return checkpointOffset;
+    }
+
 }
